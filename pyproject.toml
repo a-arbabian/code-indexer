@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-code-indexer = "code_indexer.__main__:main"
+code-indexer = "code_indexer.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.10.12,<0.11.0"]
