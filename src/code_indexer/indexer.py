@@ -51,7 +51,7 @@ class Section(IntEnum):
 
 
 @dataclass
-class _Entry:
+class Entry:
     section:      Section
     line_start:   int
     line_end:     int
@@ -63,22 +63,22 @@ class _Entry:
 
 # ── import trie ───────────────────────────────────────────────────────────────
 
-class _Trie:
+class Trie:
     def __init__(self) -> None:
-        self.kids: dict[str, _Trie] = {}
+        self.kids: dict[str, Trie] = {}
         self.leaf = False
 
     def insert(self, path: list[str]) -> None:
         node = self
         for seg in path:
-            node = node.kids.setdefault(seg, _Trie())
+            node = node.kids.setdefault(seg, Trie())
         node.leaf = True
 
     def render(self) -> list[str]:
         return _render_kids(self.kids)
 
 
-def _render_node(seg: str, node: _Trie) -> list[str]:
+def _render_node(seg: str, node: Trie) -> list[str]:
     if not node.kids:
         return [seg]
     sub = _render_kids(node.kids)
@@ -89,7 +89,7 @@ def _render_node(seg: str, node: _Trie) -> list[str]:
     return [f'{seg}.{{{", ".join(sub)}}}']
 
 
-def _render_kids(kids: dict[str, _Trie]) -> list[str]:
+def _render_kids(kids: dict[str, Trie]) -> list[str]:
     out: list[str] = []
     for seg, node in sorted(kids.items()):
         out.extend(_render_node(seg, node))
@@ -135,7 +135,7 @@ def _fn_sig(node: Node, src: bytes) -> str:
     return f'{n}{p}{r}'
 
 
-def _class_entry(node: Node, src: bytes, decs: list[str]) -> tuple[_Entry, bool]:
+def _class_entry(node: Node, src: bytes, decs: list[str]) -> tuple[Entry, bool]:
     name_node = node.child_by_field_name('name')
     name = _t(name_node, src) if name_node else '?'
 
@@ -186,19 +186,19 @@ def _class_entry(node: Node, src: bytes, decs: list[str]) -> tuple[_Entry, bool]
     )
     line_start = node.start_point[0] + 1
     line_end   = node.end_point[0] + 1
-    entry = _Entry(Section.CLASS, line_start, line_end, f'{name}{bases_str}',
+    entry = Entry(Section.CLASS, line_start, line_end, f'{name}{bases_str}',
                    children=children, attrs=decs)
     return entry, is_test_cls
 
 
-def _fn_entry(node: Node, src: bytes, decs: list[str], outer_row: int | None = None) -> _Entry:
+def _fn_entry(node: Node, src: bytes, decs: list[str], outer_row: int | None = None) -> Entry:
     sig   = _fn_sig(node, src)
     start = (outer_row if outer_row is not None else node.start_point[0]) + 1
     end   = node.end_point[0] + 1
-    return _Entry(Section.FUNCTION, start, end, sig, attrs=decs)
+    return Entry(Section.FUNCTION, start, end, sig, attrs=decs)
 
 
-def _const_entry(node: Node, src: bytes) -> Optional[_Entry]:
+def _const_entry(node: Node, src: bytes) -> Optional[Entry]:
     left  = node.child_by_field_name('left')
     right = node.child_by_field_name('right')
     typ   = node.child_by_field_name('type')
@@ -213,7 +213,7 @@ def _const_entry(node: Node, src: bytes) -> Optional[_Entry]:
     val_str  = f' = {_trunc(_t(right, src))}' if right else ''
     start = node.start_point[0] + 1
     end   = node.end_point[0] + 1
-    return _Entry(Section.CONSTANT, start, end, f'{name}{type_str}{val_str}')
+    return Entry(Section.CONSTANT, start, end, f'{name}{type_str}{val_str}')
 
 
 def _dunder_all(node: Node, src: bytes) -> Optional[list[str]]:
@@ -249,7 +249,7 @@ def _module_doc(root: Node, src: bytes) -> Optional[tuple[int, int]]:
 # ── formatting ────────────────────────────────────────────────────────────────
 
 def _format(
-    entries:    list[_Entry],
+    entries:    list[Entry],
     module_doc: Optional[tuple[int, int]],
     exports:    Optional[list[str]],
     test_lines: list[int],
@@ -261,7 +261,7 @@ def _format(
     if exports:
         out += f'exports: {", ".join(exports)}\n'
 
-    grouped: dict[Section, list[_Entry]] = defaultdict(list)
+    grouped: dict[Section, list[Entry]] = defaultdict(list)
     for e in entries:
         grouped[e.section].append(e)
 
@@ -272,7 +272,7 @@ def _format(
         if section == Section.IMPORT:
             min_l = min(e.line_start for e in items)
             max_l = max(e.line_end for e in items)
-            trie = _Trie()
+            trie = Trie()
             for e in items:
                 for path in e.import_paths:
                     trie.insert(path)
@@ -316,11 +316,11 @@ def index_source(source: str) -> str:
     root = _PARSER.parse(src).root_node
 
     module_doc  = _module_doc(root, src)
-    entries:    list[_Entry]        = []
+    entries:    list[Entry]        = []
     exports:    Optional[list[str]] = None
     test_lines: list[int]           = []
 
-    def add(e: _Entry, is_test: bool = False) -> None:
+    def add(e: Entry, is_test: bool = False) -> None:
         if is_test:
             test_lines.extend(range(e.line_start, e.line_end + 1))
         else:
@@ -332,7 +332,7 @@ def index_source(source: str) -> str:
                 paths = _import_paths(node, src)
                 if paths:
                     s, e_l = node.start_point[0] + 1, node.end_point[0] + 1
-                    entries.append(_Entry(Section.IMPORT, s, e_l, '', import_paths=paths))
+                    entries.append(Entry(Section.IMPORT, s, e_l, '', import_paths=paths))
 
             case 'class_definition':
                 entry, is_test = _class_entry(node, src, [])

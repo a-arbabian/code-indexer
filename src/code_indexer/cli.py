@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 from code_indexer import index_paths
+from code_indexer.highlight import colorize
 
 
 def main() -> None:
@@ -24,4 +25,4 @@ def main() -> None:
         Path(args.output).write_text(result, encoding='utf-8')
         print(result.splitlines()[-1], file=sys.stderr)
     else:
-        print(result, end='')
+        print(colorize(result) if sys.stdout.isatty() else result, end='')
